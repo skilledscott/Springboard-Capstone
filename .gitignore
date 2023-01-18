@@ -2,5 +2,6 @@
 .ipynb_checkpoints/
 .vscode/
 .archived/
-Data_Orig/
-Data_Aug/
+
+dataset/
+dataset_small/
