@@ -1,0 +1,26 @@
+First prototype for object detection of cars.
+
+Plan is to use a small, pretrained model at first. [yolov5 nano]
+
+Batch sizes of 5 images at a time.
+
+Faster_RCNN
+    -1 image   - CPU:  3.578
+                GPU:  0.983
+    -3 image   - CPU: 10.553
+                GPU:  1.297
+    -5 images  - CPU: 17.945
+                GPU:  2.219
+    -10 images - CPU: 36.114
+                GPU:  2.696
+    -25 images - GPU:  5.262
+    -50 images - GPU:  9.702
+    -99 images - GPU: 17.997
+YOLOv5n (nano version)
+    -1 image   - CPU: ???
+    -3 image   - CPU: ???
+    -5 images  - CPU: ???
+    -10 images - CPU: ???
+    -25 images - CPU: ???
+    -50 images - CPU: ???
+    -99 images - CPU: ???
