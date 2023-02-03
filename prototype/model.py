@@ -4,66 +4,63 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights
 from torchvision.utils import draw_bounding_boxes
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
 from time import time
 
-DATASET_PATH = '../dataset_small/test/'
+from utils import (load_labels_df, 
+    get_true_labels, 
+    get_mean_average_precision,
+    print_metric,
+    draw_preds
+)
 
-
+# loads the PyTorch Faster_RCNN model
+# returns model, preprocessing transform, and weight categories
 def load_model():
-    # load model with pretrained weights and threshold
     weights = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
     model = fasterrcnn_resnet50_fpn_v2(weights=weights, box_score_thresh=0.9)
     model.eval()
 
     preprocess = weights.transforms()
-
     weights_categories = weights.meta["categories"]
 
     return model, preprocess, weights_categories
 
 
-def load_labels_df():
-    # read in _annotations.csv file with bboxes and labels into ann_df
-    names = ['img_name', 'x1', 'y1', 'x2', 'y2', 'label']
-    ann_df = pd.read_csv(DATASET_PATH + '_annotations.csv', header=None, names=names)
-    return ann_df
-
-
-def get_true_labels(ann_df, img_name):
-    pass
-
-def run_pipeline(img_names, device='cpu'):
+# device can be ['cpu', 'cuda']
+def get_batch_preds(img_names, ann_df, device='cpu', verbose=True):
+    if verbose:
+        print('Running model on: [{}] - {} images'.format(device, len(img_names)))
+    
     pipeline_start_time = time()
 
-    # uncomment this next line to enable gpu if available
-    # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    # check to make sure PyTorch sees the gpu before loading model and 
+    # batch of images
+    if not torch.cuda.is_available():
+        print('\tNo device detected, running on cpu')
+        device = 'cpu'
 
     # load model
     model, preprocess, weights_categories = load_model()
     model.to(device)
 
-    start_time = time()
+    if verbose:
+        print('\tModel loaded         - {} seconds'.format(time() - pipeline_start_time))
 
+    # run images through model in batches of 5 at a time
     batch_size = 5
     total = len(img_names)
     left = 0
     preds = []
-    while True:
-        if left >= total:
-            break
-        if left + batch_size >= total:
-            right = total
-        else:
-            right = left + batch_size
-
+    prediction_start_time = time()
+    while left < total:
         # load batch of images from dataset
-        # imgs = [read_image(DATASET_PATH + name).cuda() for name in img_names[left:right]]
-        imgs = [read_image(DATASET_PATH + name).cuda() if device != 'cpu' \
-                else read_image(DATASET_PATH + name) for name in img_names[left:right]]
+        right = left + batch_size
+        imgs = [read_image(DATASET_PATH + name) for name in img_names[left:right]]
+        if device == 'cuda':
+            imgs = [img.cuda() for img in imgs]
 
         # create batch using preprocess on input batch of images
         batch = [preprocess(img) for img in imgs]
@@ -74,37 +71,42 @@ def run_pipeline(img_names, device='cpu'):
 
         # append the batch preds to the preds array
         preds += batch_preds
-        del(batch_preds)
 
         left += batch_size
-    
-    pred_time = time() - start_time
-    pipeline_total_time = time() - pipeline_start_time
-    return preds, pred_time, pipeline_total_time
+
+    if verbose:
+        print('\tPredictions finished - {} seconds'.format(time() - prediction_start_time))
+        print('\n\tTotal pipeline       - {} seconds'.format(time() - pipeline_start_time))
+
+    # put all output tensors on cpu for ease of scoring later
+    if device != 'cpu':
+        for i in range(len(preds)):
+            preds[i]['boxes'] = preds[i]['boxes'].to('cpu')
+            preds[i]['labels'] = preds[i]['labels'].to('cpu')
+            preds[i]['scores'] = preds[i]['scores'].to('cpu')
+
+    return preds
 
 
-# gets an average of 3 runtimes
-def test_pipeline_runtime(n_images, device='cpu'):
-    pred_times = []
-    pipeline_total_times = []
-    for _ in range(3):
-        img_nums = np.random.randint(1, 201, n_images)
-        img_names = ['img{}.jpg'.format(num) for num in img_nums]
+# set constant dataset path for input images
+DATASET_PATH = '../dataset_small/test/'
 
-        # run pipeline on img
-        preds, pred_time, pipeline_total_time = run_pipeline(img_names, device)
-        pred_times.append(pred_time)
-        pipeline_total_times.append(pipeline_total_time)
+# load annotations for dataset
+ann_df = load_labels_df(DATASET_PATH)
 
-    print('''Model average of 3 for {} images.
-        prediction time:     {} seconds
-        pipeline total time: {} seconds
-        '''.format(n_images,
-                   sum(pred_times) / 3,
-                   sum(pipeline_total_times) / 3))
+# create a list of input images and run model to get
+# batch predictions
+# currently gets one random image, and runs preds on that
+n_images = 1
+img_nums = np.random.randint(1, 201, n_images)
+img_names = ['img{}.jpg'.format(num) for num in img_nums]
+preds = get_batch_preds(img_names, ann_df, device='cuda', verbose=True)
 
-# load labels into df
-# ann_df = load_labels_df()
+# get map
+metric = get_mean_average_precision(img_names, ann_df, preds)
 
-test_pipeline_runtime(1, device='cpu')
-# test_pipeline_runtime(1, device='cuda:0')
+# print metric evaluation
+print_metric(metric)
+
+# draw preds and display/save to file (display for now)
+draw_preds(preds)
