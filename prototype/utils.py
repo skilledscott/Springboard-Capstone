@@ -12,11 +12,9 @@ from PIL import Image
 
 def load_labels_df(path):
     '''
-    load_labels_df: Uses pandas to read the csv at the location, 
-                    '<path>/_annotations.csv', and returns the read 
-                    DataFrame.
+    load_labels_df: Uses pandas to read '<path>/_annotations.csv'
     
-    :param path: str, image dataset path where .csv file is stored
+    :param path: str, image dataset path where the .csv file is stored
 
     Returns ann_df -> pd.DataFrame
     '''
@@ -31,8 +29,8 @@ def get_true_labels(img_name, ann_df):
     get_true_labels: Filters ann_df for all rows for the given img_name.
                      Returns a tensor of labels, and a tensor of bounding boxes.
     
-    :param img_name: str
-    :param ann_df: pd.DataFrame
+    :param img_name: str, name used to filter ann_df
+    :param ann_df: pd.DataFrame, dataset boxes and labels
 
     Returns labels -> list[str], boxes -> torch.tensor(list[list[float]])
     '''
@@ -46,15 +44,16 @@ def get_true_labels(img_name, ann_df):
 
 def convert_labels_to_tensor(labels, meta_categories):
     '''
-    convert_labels_to_tensor: Convert a list of strings to their integer
-                              index location in meta_categories. Will return a
-                              tensor of integers stored on the cpu.
+    convert_labels_to_tensor: Convert a list of strings to the weights representation.
+                              Will return a tensor of integers.
 
     :param labels: list[str], bounding box labels, like 'car', or 'bike'
-    :param meta_categories: list[str], each str corresponds to an output label.
-                       if meta_categories[3] = 'car' -> 'car' = 3.
+    :param meta_categories: list[str], indexed categories from weights.
     
     Returns labels -> torch.tensor(list[int])
+
+    Labels returned will be a tensor stored on the cpu, it needs to be moved to the gpu
+    later if necessary.
     '''
 
     int_labels = []
@@ -68,7 +67,16 @@ def convert_labels_to_tensor(labels, meta_categories):
 
 
 def filter_preds(preds, meta_categories, device):
-    # filter preds and keep only the 'car' labels
+    '''
+    filter_preds: Filters the preds to only return the 'car' bounding boxes.
+
+    :param preds: list[dict{boxes, labels, scores}], predictions to filter
+    :param meta_categories: list[str], list of weight categories
+    :param device: str in ['cpu', 'cuda'], use cuda to return tensors on the gpu
+
+    Returns filtered_preds -> list[dict{boxes, labels, scores}]
+    '''
+    
     car_label = [i for i in range(len(meta_categories)) if
                     meta_categories[i] == 'car'][0]
     filtered_preds = []
@@ -92,12 +100,12 @@ def get_mean_average_precision(preds, targets):
                                 metric can be visualized by calling metric.compute().
                                 Or by calling print_metric from utils.py.
     
-    :param img_names: list[str], list of image names, should be 1-to-1 with preds
-    :param ann_df: pd.DataFrame, df of true labels for images
-    :param preds: list[dict['boxes', 'labels', 'scores']], each image from img_names
-                  corresponds to an entry in this list
+    :param preds: list[dict{boxes, labels, scores}], predictions from model
+    :param targets: list[dict{boxes, labels}], true labels from dataset .csv file
 
-    Returns metric -> MeanAveragePrecision object
+    Returns: metric -> MeanAveragePrecision object
+
+    Call print_metric with the returned metric to print it to the console.
     '''
 
     metric = MeanAveragePrecision()
@@ -105,9 +113,13 @@ def get_mean_average_precision(preds, targets):
     return metric
 
 
-# print_metric: Uses pprint and metric.compute() to display metric information
-# to the console.
 def print_metric(metric):
+    '''
+    print_metric: Prints the metric to the console using pprint.
+
+    :param metric: MeanAveragePrecision object
+    '''
+
     print('\nMean Average Precision:')
     pprint(metric.compute())
 
@@ -118,9 +130,10 @@ def draw_preds(dataset_path, img_names, preds):
                 preds on the first input image.
     
     :param dataset_path: str, path to the dataset of images
-    :param img_names: list[str], each image should match one-to-one with the preds
-                      list
+    :param img_names: list[str]
     :param preds: list[dict['boxes', 'labels', 'scores']]
+
+    Currently only draws the first image from img_names.
     '''
 
     print('\nDrawing bounding boxes...')

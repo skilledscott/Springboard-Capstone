@@ -23,15 +23,13 @@ def load_model():
     '''
     load_model: Loads the faster_rcnn model from PyTorch with default
                 weights.
-                
-                The preprocessing returned is to be run on images before
-                inputting them into the model for prediction.
-
-                The meta_categories returned are an array of categories,
-                so if the model returns a label of 3, that's referring to
-                meta_categories[3] i.e. 'car'.
     
-    Returns model, preprocess, meta_categories
+    Returns: model, preprocess, meta_categories
+                
+    Call preprocess(img) on each image before feeding into model.
+
+    The meta_categories is a list of string labels. If a model returns
+    3, that refers to meta_categories[3] -> 'car'.
     '''
 
     weights = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
@@ -45,6 +43,20 @@ def load_model():
 
 
 def get_preds(model, preprocess, meta_categories, img_names, device='cpu'):
+    '''
+    get_preds: Gets prediction bounding boxes and labels from the model.
+
+    :param model: torch model, currently expects Faster RCNN
+    :param preprocess: torch transform, model image preprocess
+    :param meta_categories: list[str], meta categories from model weights
+    :param img_names: list[str], list of images to get predictions for
+    :param device: str in ['cpu', 'cuda']
+
+    Returns: filtered_preds -> list[dict{boxes, labels, scores}]
+
+    filtered_preds contains only boxes labeling 'car', and there will be one dict{}
+    per image in img_names.
+    '''
     print('Running model on: [{}] - {} images'.format(device, len(img_names)))
     
     prediction_start_time = time()
@@ -70,9 +82,10 @@ def get_preds(model, preprocess, meta_categories, img_names, device='cpu'):
         # append the batch preds to the preds array
         preds += batch_preds
 
+        # increment to next batch of images
         left += batch_size
 
-    # filter preds and keep only the 'car' labels
+    # filter preds and keep only the 'car' boxes/labels
     filtered_preds = filter_preds(preds, meta_categories, device)
 
     print('\tPredictions finished - {} seconds'.format(time() - prediction_start_time))
@@ -81,6 +94,21 @@ def get_preds(model, preprocess, meta_categories, img_names, device='cpu'):
 
 
 def get_targets(img_names, ann_df, meta_categories, device):
+    '''
+    get_targets: Converts ann_df boxes and labels for the img_names to tensors.
+
+    :param img_names: list[str], list of images to get true labels for
+    :param ann_df: pd.DataFrame, labels and box coords for dataset images
+    :param meta_categories: list[str], meta categories from model weights
+    :param device: str in ['cpu', 'cuda']
+
+    Returns: targets -> list[dict{boxes, labels}]
+
+    Specifiying device is important if calling mean average precision on predictions
+    and targets, since that function expects all boxes/labels tensors to be on the
+    same device.
+    '''
+    
     targets = []
     for name in img_names:
         labels, boxes = get_true_labels(name, ann_df)
@@ -93,6 +121,7 @@ def get_targets(img_names, ann_df, meta_categories, device):
     return targets
 
 
+# main program, runs entire pipeline
 if __name__ == '__main__':
     # Make sure that cuda is available if running on gpu
     device = DEVICE
