@@ -4,7 +4,8 @@ from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_
 
 import numpy as np
 from time import time
-from utils import (load_labels_df,
+from utils import (
+    load_labels_df,
     filter_preds,
     get_true_labels,
     convert_labels_to_tensor,
@@ -28,8 +29,8 @@ def load_model():
                 
     Call preprocess(img) on each image before feeding into model.
 
-    The meta_categories is a list of string labels. If a model returns
-    3, that refers to meta_categories[3] -> 'car'.
+    The meta_categories is a list of string labels. If a model returns 3, 
+    that refers to meta_categories[3] -> 'car'.
     '''
 
     weights = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
